@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Event extends Model
 {
-    protected $fillable = ['name', 'start_date', 'end_date', 'start_time', 'end_time', 'recurrent'];
+    protected $fillable = ['name', 'start_date', 'end_date', 'start_time', 'end_time', 'recurrent', 'recurrent_type', 'include_weekends'];
 
     protected $hidden = ['created_at', 'updated_at'];
 }

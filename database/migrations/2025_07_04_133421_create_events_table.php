@@ -15,10 +15,12 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->date('start_date');
-            $table->date('end_date');
+            $table->date('end_date')->nullable();
             $table->timeTz('start_time');
             $table->timeTz('end_time');
             $table->boolean('recurrent');
+            $table->enum('recurrent_type', ['none', 'daily', 'weekly', 'monthly']);
+            $table->boolean('include_weekends')->default(false);
             $table->timestamps();
         });
     }

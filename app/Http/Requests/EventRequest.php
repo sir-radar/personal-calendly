@@ -11,7 +11,7 @@ class EventRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -24,11 +24,12 @@ class EventRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'start_date' => ['required', 'string'],
-            'end_date' => ['required', 'string'],
+            'end_date' => ['nullable', 'string'],
             'start_time' => ['required', 'string'],
             'end_time' => ['required', 'string'],
-            'recurrent' => ['required', 'boolean'],
-
+            'recurrent' => ['nullable', 'boolean'],
+            'recurrent_type' => ['nullable', 'in:daily,weekly,monthly'],
+            'include_weekends' => ['nullable', 'boolean'],
         ];
     }
 }
