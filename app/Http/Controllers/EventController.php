@@ -19,8 +19,11 @@ class EventController extends Controller
 
     function store(EventRequest $request)
     {
-        // dd($request);
-        $event = Event::create($request->validated());
+        try {
+            $event = Event::create($request->validated());
+        } catch (\Exception $e) {
+            return redirect()->back()->with('errors', $e->getMessage());
+        }
 
         return redirect()->back()->with('event', $event);
     }
