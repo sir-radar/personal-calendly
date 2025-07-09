@@ -6,7 +6,7 @@ import { Head } from '@inertiajs/react';
 export default function Home({ events }: CalendarEventsProps) {
     return (
         <>
-            <Head title="Calendly clone welcome" />
+            <Head title="Home" />
             <AppLayout>
                 <Calendar events={events} />
             </AppLayout>
