@@ -1,42 +1,22 @@
-import clsx from 'clsx';
+import { router } from '@inertiajs/react';
 import dayjs from 'dayjs';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
-import React, { useState } from 'react';
-import Modal from './modal';
+import { useState } from 'react';
+import { CalendarEvent, CalendarEventsProps } from '../types';
+import CalendarGrid from './calendar-grid';
+import CalendarHeader from './calendar-header';
+import EventModal from './event-modal';
 
-const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-interface CalendarEvent {
-    id: number;
-    name: string;
-    startDate: string;
-    endDate: string;
-    startTime: string;
-    endTime: string;
-    repeat: boolean;
-}
-
-export default function Calendar() {
+export default function Calendar({ events: storedEvents }: CalendarEventsProps) {
     const [currentDate, setCurrentDate] = useState(dayjs());
     const [selectedDate, setSelectedDate] = useState<dayjs.Dayjs | null>(null);
-    const [hoveredDate, setHoveredDate] = useState<dayjs.Dayjs | null>(null);
     const [eventModalOpen, setEventModalOpen] = useState(false);
-    const [events, setEvents] = useState<CalendarEvent[]>([]);
-
-    const [formData, setFormData] = useState({
-        name: '',
-        startDate: '',
-        endDate: '',
-        startTime: '',
-        endTime: '',
-        repeat: false,
-    });
+    const [events, setEvents] = useState<CalendarEvent[]>(storedEvents);
+    const [errors, setErrors] = useState<Record<string, string>>({});
 
     const startOfMonth = currentDate.startOf('month');
     const endOfMonth = currentDate.endOf('month');
     const startDate = startOfMonth.startOf('week');
     const endDate = endOfMonth.endOf('week');
-
     const days = [];
     let date = startDate;
     while (date.isBefore(endDate, 'day') || date.isSame(endDate, 'day')) {
@@ -50,101 +30,58 @@ export default function Calendar() {
 
     const openEventModal = (day: dayjs.Dayjs) => {
         setSelectedDate(day);
-        setFormData({
-            name: '',
-            startDate: day.format('YYYY-MM-DD'),
-            endDate: day.format('YYYY-MM-DD'),
-            startTime: '',
-            endTime: '',
-            repeat: false,
-        });
         setEventModalOpen(true);
     };
 
-    const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        const { name, value, type, checked } = e.target;
-        setFormData((prev) => ({
-            ...prev,
-            [name]: type === 'checkbox' ? checked : value,
-        }));
+    const handleEventSubmit = async (data: CalendarEvent) => {
+        router.post('/events', data, {
+            preserveScroll: true,
+            preserveState: true,
+            only: ['events'],
+            onSuccess: ({ props }) => {
+                const events = props.events as CalendarEvent[];
+                setEvents([...events]);
+                setEventModalOpen(false);
+                // Show toast or update local state
+            },
+            onError: (errors) => {
+                setErrors(errors);
+            },
+        });
     };
 
-    const handleEventSubmit = () => {
-        const newEvent: CalendarEvent = {
-            id: Date.now(),
-            ...formData,
-        };
-        setEvents((prev) => [...prev, newEvent]);
-        setEventModalOpen(false);
-    };
+    const getEventsForDate = (date: dayjs.Dayjs) =>
+        events?.filter((event) => {
+            const start = dayjs(event.start_date);
+            const end = event.end_date ? dayjs(event.end_date) : undefined;
 
-    const getEventsForDate = (date: dayjs.Dayjs) => events.filter((event) => dayjs(event.startDate).isSame(date, 'day'));
+            if (!event.recurrent) {
+                return date.isSame(start, 'day') || (!!end && (date.isSame(end, 'day') || (date.isAfter(start, 'day') && date.isBefore(end, 'day'))));
+            }
+
+            if (date.isBefore(start, 'day')) return false;
+            if (end && date.isAfter(end, 'day')) return false;
+            if (!event.include_weekends && (date.day() === 0 || date.day() === 6)) return false;
+
+            switch (event.recurrent_type) {
+                case 'daily':
+                    return true;
+                case 'weekly':
+                    return date.day() === start.day();
+                case 'monthly':
+                    return date.date() === start.date();
+                default:
+                    return false;
+            }
+        });
 
     return (
         <div className="relative flex min-h-screen w-full flex-col bg-gray-100 text-gray-700">
-            {/* Header */}
-            <div className="flex items-center justify-between bg-white p-4 shadow">
-                <button onClick={() => changeMonth('prev')}>
-                    <ChevronLeft />
-                </button>
-                <div className="text-2xl font-semibold">{currentDate.format('MMMM YYYY')}</div>
-                <button onClick={() => changeMonth('next')}>
-                    <ChevronRight />
-                </button>
-            </div>
-
-            {/* Grid */}
-            <div className="grid flex-grow grid-cols-7 gap-px px-2 py-4">
-                {daysOfWeek.map((day) => (
-                    <div key={day} className="text-center font-bold text-gray-700">
-                        {day}
-                    </div>
-                ))}
-
-                {days.map((day, i) => {
-                    const isCurrentMonth = day.isSame(currentDate, 'month');
-                    const isToday = day.isSame(dayjs(), 'day');
-                    const isHovered = hoveredDate?.isSame(day, 'day');
-                    const dayEvents = getEventsForDate(day);
-
-                    return (
-                        <div
-                            key={i}
-                            onMouseEnter={() => setHoveredDate(day)}
-                            onMouseLeave={() => setHoveredDate(null)}
-                            className={clsx(
-                                'group relative flex min-h-[100px] flex-col items-center rounded-lg border p-2',
-                                isCurrentMonth ? 'bg-white' : 'bg-gray-50 text-gray-400',
-                                isToday && 'border-blue-500',
-                            )}
-                        >
-                            <div className="self-start font-semibold">{day.date()}</div>
-
-                            {/* Events */}
-                            <div className="mt-1 w-full space-y-1 text-left text-xs">
-                                {dayEvents.map((event) => (
-                                    <div key={event.id} className="truncate rounded bg-blue-100 px-1 py-0.5 text-blue-800">
-                                        {event.name}
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* Add Button */}
-                            {isHovered && (
-                                <button
-                                    onClick={() => openEventModal(day)}
-                                    className="absolute top-1 right-1 rounded-full bg-blue-500 p-1 text-white hover:bg-blue-600"
-                                >
-                                    <Plus size={12} />
-                                </button>
-                            )}
-                        </div>
-                    );
-                })}
-            </div>
-
-            {/* Modal */}
-            {eventModalOpen && <Modal />}
+            <CalendarHeader currentDate={currentDate} changeMonth={changeMonth} />
+            <CalendarGrid currentDate={currentDate} days={days} getEventsForDate={getEventsForDate} openEventModal={openEventModal} />
+            {eventModalOpen && (
+                <EventModal selectedDate={selectedDate} handleSubmit={handleEventSubmit} onClose={() => setEventModalOpen(false)} errors={errors} />
+            )}
         </div>
     );
 }
