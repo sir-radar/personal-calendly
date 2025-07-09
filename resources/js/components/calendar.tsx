@@ -1,6 +1,8 @@
 import { router } from '@inertiajs/react';
 import dayjs from 'dayjs';
 import { useState } from 'react';
+import { toast } from 'sonner';
+
 import { CalendarEvent, CalendarEventsProps } from '../types';
 import CalendarGrid from './calendar-grid';
 import CalendarHeader from './calendar-header';
@@ -42,9 +44,12 @@ export default function Calendar({ events: storedEvents }: CalendarEventsProps) 
                 const events = props.events as CalendarEvent[];
                 setEvents([...events]);
                 setEventModalOpen(false);
-                // Show toast or update local state
+                toast.success('Event has been created', {
+                    description: `${data.start_date ? dayjs(data.start_date).format('dddd, MMMM D, YYYY') : ''}`,
+                });
             },
             onError: (errors) => {
+                toast.error('Event creation failed');
                 setErrors(errors);
             },
         });
