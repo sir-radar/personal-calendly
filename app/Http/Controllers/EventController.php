@@ -21,10 +21,10 @@ class EventController extends Controller
     {
         try {
             $event = Event::create($request->validated());
-        } catch (\Exception $e) {
-            return redirect()->back()->with('errors', $e->getMessage());
+        } catch (\Throwable $e) {
+            return back()->with('error', $e->getMessage());
         }
 
-        return redirect()->back()->with('event', $event);
+        return back()->with('success', 'Event created successfully');
     }
 }
