@@ -58,12 +58,12 @@ A Laravel-based calendar events application.
 7. **Code Quality:**
     ```sh
     composer pint
-    composer pint
+    composer phpstan
     ```
 
 **TODOS:**
 
-[]: # - add users and link them to events
+[Done]: # - add users and link them to events
 
 []: # - improve DB query
 
@@ -78,3 +78,7 @@ A Laravel-based calendar events application.
 []: # - update readme documentation
 
 []: # - integrate CI/CD
+
+[]: # - expanded day on click to view all events
+
+[]: # - Notify user of event 1day, 30mins to event via email
