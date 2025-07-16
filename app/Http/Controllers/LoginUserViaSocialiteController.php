@@ -19,11 +19,6 @@ class LoginUserViaSocialiteController extends Controller
 
     public function store($provider)
     {
-        // dd($provider);
-        // $this->validateProvider($provider);
-
-        // Get the user from the Google/Microsoft callback
-        // $response = Socialite::driver($provider)->user();
         $response = Socialite::driver($provider)->user();
 
         // Check if the user exists
@@ -47,12 +42,4 @@ class LoginUserViaSocialiteController extends Controller
         // Redirect the user to the dashboard
         return redirect(route('home'));
     }
-
-    // protected function validateProvider(string $provider): array
-    // {
-    //     return $this->getValidationFactory()->make(
-    //         ['provider' => $provider],
-    //         ['provider' => 'in:google']
-    //     )->validate();
-    // }
 }
