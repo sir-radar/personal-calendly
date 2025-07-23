@@ -1,0 +1,124 @@
+name: Deploy Laravel & React App to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: SSH & Deploy on EC2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Save SSH key to file securely
+        run: |
+          echo "$EC2_SSH_KEY" > deploy_key.pem
+          chmod 400 deploy_key.pem
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Test SSH connection
+        run: |
+          ssh -v -o StrictHostKeyChecking=no -o CheckHostIP=no -i deploy_key.pem ec2-user@${{ secrets.EC2_HOST }} "echo ✅ SSH connection successful"
+
+      - name: Deploy on EC2 via SSH
+        run: |
+          ssh -o StrictHostKeyChecking=no -o CheckHostIP=no -i deploy_key.pem ec2-user@${{ secrets.EC2_HOST }} \
+          "export GOOGLE_CLIENT_ID='${{ secrets.GOOGLE_CLIENT_ID }}' && \
+           export GOOGLE_CLIENT_SECRET='${{ secrets.GOOGLE_CLIENT_SECRET }}' && \
+           export GOOGLE_REDIRECT_URI='${{ secrets.GOOGLE_REDIRECT_URI }}' && \
+           bash -s" <<EOF_SCRIPT
+          set -e
+
+          echo "✅ Connected to EC2!"
+          echo "🔧 Updating packages..."
+          sudo yum update -y
+
+          echo "🔄 Installing Git..."
+          sudo yum install -y git
+
+          echo "🐳 Installing Docker..."
+          sudo yum install -y docker
+          sudo systemctl enable docker
+          sudo systemctl start docker
+          sudo usermod -aG docker ec2-user
+
+          echo "🧩 Installing Docker Compose v2..."
+          mkdir -p ~/.docker/cli-plugins/
+          curl -SL https://github.com/docker/compose/releases/download/v2.24.7/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose
+          chmod +x ~/.docker/cli-plugins/docker-compose
+
+          echo "✅ Verifying Docker versions..."
+          docker --version
+          docker compose version
+
+          echo "📁 Pulling latest code..."
+          if [ ! -d ~/app ]; then
+            git clone https://github.com/${{ github.repository }} ~/app
+          else
+            cd ~/app && git pull origin main
+          fi
+
+          echo "🛠 Setting up environment variables..."
+          cd ~/app
+          cp .env.example .env
+
+          echo "GOOGLE_CLIENT_ID=\$GOOGLE_CLIENT_ID" >> .env
+          echo "GOOGLE_CLIENT_SECRET=\$GOOGLE_CLIENT_SECRET" >> .env
+          echo "GOOGLE_REDIRECT_URI=\$GOOGLE_REDIRECT_URI" >> .env
+
+          echo "🧼 Cleaning up Docker system to free space..."
+          docker system prune -af --volumes
+
+          echo "🧹 Removing unnecessary files..."
+          rm -rf node_modules
+
+          echo "🚀 Deploying app with Docker Compose..."
+          docker compose pull
+          docker compose down
+          docker compose up -d --build
+
+          echo "🔍 Listing Docker containers..."
+          docker compose ps
+
+          echo "🛠 Running Laravel post-deploy tasks..."
+          APP_CONTAINER_ID=\$(docker compose ps -q app)
+
+          if [ -z "\$APP_CONTAINER_ID" ]; then
+            echo "❌ Failed to find 'app' container. Check your service name in docker-compose.yml."
+            exit 1
+          fi
+
+          echo "📂 Fixing storage permissions..."
+          docker exec -u root \$APP_CONTAINER_ID chmod -R o+w /var/www/storage /var/www/bootstrap/cache
+
+          echo "📄 Ensuring SQLite DB exists..."
+          docker exec \$APP_CONTAINER_ID touch /var/www/database/database.sqlite
+          docker exec -u root \$APP_CONTAINER_ID chmod 666 /var/www/database/database.sqlite
+
+          echo "📦 Installing PHP dependencies with Composer..."
+          docker exec \$APP_CONTAINER_ID composer install --no-dev --optimize-autoloader
+
+          echo "💿 Installing Node dependencies..."
+          docker exec \$APP_CONTAINER_ID npm ci
+
+          echo "🛠 Building frontend assets with Vite..."
+          docker exec \$APP_CONTAINER_ID npm run build
+
+          echo "🔐 Generating app key..."
+          docker exec \$APP_CONTAINER_ID php artisan key:generate
+
+          echo "🛤 Running migrations..."
+          docker exec \$APP_CONTAINER_ID php artisan migrate --force
+
+          echo "🧹 Clearing cache..."
+          docker exec \$APP_CONTAINER_ID php artisan config:clear
+          docker exec \$APP_CONTAINER_ID php artisan route:clear
+          docker exec \$APP_CONTAINER_ID php artisan view:clear
+
+          echo "✅ Deployment complete!"
+          EOF_SCRIPT
